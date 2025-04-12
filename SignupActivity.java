@@ -4,8 +4,10 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -22,10 +24,8 @@ import com.decor.entity.User;
 import com.decor.repository.UserRepository;
 import com.decor.util.FileUtil;
 import com.google.firebase.FirebaseException;
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.PhoneAuthCredential;
-import com.google.firebase.auth.PhoneAuthOptions;
-import com.google.firebase.auth.PhoneAuthProvider;
+import com.google.firebase.FirebaseTooManyRequestsException;
+import com.google.firebase.auth.*;
 
 import java.util.Date;
 import java.util.UUID;
@@ -69,6 +69,8 @@ public class SignupActivity extends AppCompatActivity {
         editYearEstablished = findViewById(R.id.edit_year_established);
         editGstNumber = findViewById(R.id.edit_gst_number);
         editPhone = findViewById(R.id.edit_phone);
+        editPhone.setText("+91");
+        editPhone.setSelection(editPhone.getText().length());
         editEmail = findViewById(R.id.edit_email);
         editAddress = findViewById(R.id.edit_address);
         editReferralCode = findViewById(R.id.edit_referral_code);
@@ -82,7 +84,10 @@ public class SignupActivity extends AppCompatActivity {
     }
 
     private void checkStoragePermissionAndPickFile() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // For Android 11+ directly go to file picker (using scoped storage)
+            pickFile();
+        } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
                     new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
@@ -141,7 +146,15 @@ public class SignupActivity extends AppCompatActivity {
 
                     @Override
                     public void onVerificationFailed(@NonNull FirebaseException e) {
-                        Toast.makeText(SignupActivity.this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                        // Better error handling
+                        String errorMessage = "Verification failed";
+                        if (e instanceof FirebaseAuthInvalidCredentialsException) {
+                            errorMessage = "Invalid phone number format";
+                        } else if (e instanceof FirebaseTooManyRequestsException) {
+                            errorMessage = "Too many requests. Try again later";
+                        }
+                        Toast.makeText(SignupActivity.this, errorMessage, Toast.LENGTH_LONG).show();
+                        Log.e("PhoneAuth", "Error: " + e.getMessage());
                     }
 
                     @Override
