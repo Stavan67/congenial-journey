@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+
+    <application
+            android:allowBackup="true"
+            android:dataExtractionRules="@xml/data_extraction_rules"
+            android:fullBackupContent="@xml/backup_rules"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name"
+            android:supportsRtl="true"
+            android:theme="@style/Theme.FinalYearProject"
+            tools:targetApi="31">
+
+        <!-- Login Activity (Launcher) -->
+        <activity
+                android:name=".ui.LoginActivity"
+                android:exported="true"
+                android:label="@string/app_name"
+                android:theme="@style/Theme.FinalYearProject.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Signup Activity (No longer launcher) -->
+        <activity
+                android:name=".ui.SignupActivity"
+                android:exported="false"
+                android:label="@string/title_activity_signup"
+                android:theme="@style/Theme.FinalYearProject.NoActionBar"/>
+
+        <!-- Pending Approval Activity -->
+        <activity
+                android:name=".ui.PendingApprovalActivity"
+                android:exported="false"
+                android:label="@string/title_activity_dialog_otp_verification"
+                android:theme="@style/Theme.FinalYearProject.NoActionBar"/>
+
+        <!-- Admin Activities (Hidden, accessed via gesture) -->
+        <activity android:name=".admin.AdminLoginActivity" />
+        <activity android:name=".admin.AdminDashboardActivity" />
+
+        <!-- Home Activity (Add this if it exists) -->
+        <activity
+                android:name=".ui.MainActivity"
+                android:exported="true"
+                android:launchMode="singleTop"
+                android:theme="@style/Theme.FinalYearProject.NoActionBar"/>
+
+    </application>
+</manifest>
