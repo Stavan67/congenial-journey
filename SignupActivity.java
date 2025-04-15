@@ -8,7 +8,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
@@ -23,18 +22,15 @@ import com.decor.R;
 import com.decor.entity.User;
 import com.decor.repository.UserRepository;
 import com.decor.util.FileUtil;
-import com.google.firebase.FirebaseException;
-import com.google.firebase.FirebaseTooManyRequestsException;
-import com.google.firebase.auth.*;
 
-import java.util.Date;
+import java.util.Random;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 public class SignupActivity extends AppCompatActivity {
 
     private static final int REQUEST_STORAGE_PERMISSION = 100;
     private static final int REQUEST_FILE_PICK = 101;
+    private static final String TAG = "SignupActivity";
 
     private EditText editBusinessName;
     private EditText editYearEstablished;
@@ -51,15 +47,11 @@ public class SignupActivity extends AppCompatActivity {
     private Uri licenseFileUri = null;
     private String userId = UUID.randomUUID().toString();
     private boolean isPhoneVerified = false;
-    private FirebaseAuth mAuth;
-    private String verificationId;
-    private PhoneAuthProvider.ForceResendingToken resendToken;
-
+    private String mockOtp; // Store the mock OTP
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        mAuth = FirebaseAuth.getInstance();
         setContentView(R.layout.activity_signup);
 
         userRepository = new UserRepository(getApplication());
@@ -128,108 +120,66 @@ public class SignupActivity extends AppCompatActivity {
 
     private void verifyPhoneNumber() {
         String phoneNumber = editPhone.getText().toString().trim();
-        if (!phoneNumber.startsWith("+")) { // Enforce country code
+        if (TextUtils.isEmpty(phoneNumber)) {
+            editPhone.setError("Phone number is required");
+            return;
+        }
+
+        if (!phoneNumber.startsWith("+")) {
             editPhone.setError("Include country code (e.g. +91...)");
             return;
         }
 
-        PhoneAuthOptions options = PhoneAuthOptions.newBuilder(mAuth)
-                .setPhoneNumber(phoneNumber)
-                .setTimeout(60L, TimeUnit.SECONDS)
-                .setActivity(this)
-                .setCallbacks(new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-                    @Override
-                    public void onVerificationCompleted(@NonNull PhoneAuthCredential credential) {
-                        // Auto-verify without SMS (e.g. on same device)
-                        signInWithCredential(credential);
-                    }
+        // Disable button to prevent multiple requests
+        btnVerifyPhone.setEnabled(false);
+        btnVerifyPhone.setText("Sending OTP...");
 
-                    @Override
-                    public void onVerificationFailed(@NonNull FirebaseException e) {
-                        // Better error handling
-                        String errorMessage = "Verification failed";
-                        if (e instanceof FirebaseAuthInvalidCredentialsException) {
-                            errorMessage = "Invalid phone number format";
-                        } else if (e instanceof FirebaseTooManyRequestsException) {
-                            errorMessage = "Too many requests. Try again later";
-                        }
-                        Toast.makeText(SignupActivity.this, errorMessage, Toast.LENGTH_LONG).show();
-                        Log.e("PhoneAuth", "Error: " + e.getMessage());
-                    }
+        // For development/testing - generate a random 6-digit OTP
+        mockOtp = String.format("%06d", new Random().nextInt(999999));
 
-                    @Override
-                    public void onCodeSent(@NonNull String vId,
-                                           @NonNull PhoneAuthProvider.ForceResendingToken token) {
-                        verificationId = vId;
-                        resendToken = token;
-                        showOtpDialog(); // Show OTP input dialog
-                    }
-                })
-                .build();
-        PhoneAuthProvider.verifyPhoneNumber(options);
+        // Simulate network delay for realism (1.5 seconds)
+        btnVerifyPhone.postDelayed(() -> {
+            // In a real app, this would be sent via SMS
+            Toast.makeText(this, "Development mode: Your OTP is " + mockOtp, Toast.LENGTH_LONG).show();
+            Log.d(TAG, "Generated mock OTP: " + mockOtp);
+
+            // Enable the button for resending
+            btnVerifyPhone.setEnabled(true);
+            btnVerifyPhone.setText("Resend OTP");
+
+            // Show OTP dialog
+            showOtpDialog();
+        }, 1500);
     }
 
     private void showOtpDialog() {
         OtpVerificationDialog dialog = new OtpVerificationDialog();
-        dialog.setVerificationId(verificationId);
+        dialog.setMockOtp(mockOtp);
         dialog.setOtpVerificationListener(new OtpVerificationDialog.OtpVerificationListener() {
             @Override
-            public void onOtpVerified(String verificationId, String otp) {
-                PhoneAuthCredential credential = PhoneAuthProvider.getCredential(verificationId, otp);
-                signInWithCredential(credential);
+            public void onOtpVerified(boolean isSuccess) {
+                if (isSuccess) {
+                    isPhoneVerified = true;
+                    btnVerifyPhone.setText("Verified ✓");
+                    btnVerifyPhone.setEnabled(false);
+                    Toast.makeText(SignupActivity.this, "Phone verified successfully", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(SignupActivity.this, "Invalid OTP", Toast.LENGTH_SHORT).show();
+                }
             }
 
             @Override
             public void onResendOtp() {
-                resendVerificationCode(editPhone.getText().toString().trim());
+                // Generate a new OTP and resend
+                mockOtp = String.format("%06d", new Random().nextInt(999999));
+                Toast.makeText(SignupActivity.this,
+                        "Development mode: Your new OTP is " + mockOtp,
+                        Toast.LENGTH_LONG).show();
+                Log.d(TAG, "Resent mock OTP: " + mockOtp);
             }
         });
         dialog.show(getSupportFragmentManager(), "OTP_DIALOG");
     }
-
-    private void resendVerificationCode(String phoneNumber) {
-        PhoneAuthOptions options = PhoneAuthOptions.newBuilder(mAuth)
-                .setPhoneNumber(phoneNumber)
-                .setTimeout(60L, TimeUnit.SECONDS)
-                .setActivity(this)
-                .setForceResendingToken(resendToken)
-                .setCallbacks(new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-                    @Override
-                    public void onVerificationCompleted(@NonNull PhoneAuthCredential credential) {
-                        signInWithCredential(credential);
-                    }
-
-                    @Override
-                    public void onVerificationFailed(@NonNull FirebaseException e) {
-                        Toast.makeText(SignupActivity.this, "Resend failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-
-                    @Override
-                    public void onCodeSent(@NonNull String newVerificationId,
-                                           @NonNull PhoneAuthProvider.ForceResendingToken token) {
-                        verificationId = newVerificationId;
-                        resendToken = token;
-                        Toast.makeText(SignupActivity.this, "New OTP sent!", Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .build();
-        PhoneAuthProvider.verifyPhoneNumber(options);
-    }
-
-    private void signInWithCredential(PhoneAuthCredential credential) {
-        mAuth.signInWithCredential(credential)
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        // Phone verified! Now save user data to your Room DB
-                        isPhoneVerified = true;
-                        btnVerifyPhone.setText("Verified ✓");
-                        btnVerifyPhone.setEnabled(false);
-                    } else {
-                        Toast.makeText(this, "Invalid OTP", Toast.LENGTH_SHORT).show();
-                    }
-                });
-    }
-
 
     private void validateAndSignup() {
         String businessName = editBusinessName.getText().toString().trim();
@@ -281,7 +231,17 @@ public class SignupActivity extends AppCompatActivity {
             return;
         }
 
-        int year = Integer.parseInt(yearStr);
+        int year;
+        try {
+            year = Integer.parseInt(yearStr);
+        } catch (NumberFormatException e) {
+            editYearEstablished.setError("Invalid year format");
+            return;
+        }
+
+        // Show progress indication
+        btnSignup.setText("Creating account...");
+        btnSignup.setEnabled(false);
 
         // Save license file to app's internal storage
         String licensePath = FileUtil.saveFileToInternalStorage(this, licenseFileUri, userId + "_license");
@@ -310,7 +270,7 @@ public class SignupActivity extends AppCompatActivity {
                             "Registration successful! Pending admin approval.",
                             Toast.LENGTH_LONG).show();
 
-                    // Navigate to pending approval screen or login
+                    // Navigate to pending approval screen
                     Intent intent = new Intent(SignupActivity.this, PendingApprovalActivity.class);
                     startActivity(intent);
                     finish();
